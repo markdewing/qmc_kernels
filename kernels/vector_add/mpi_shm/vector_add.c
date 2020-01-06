@@ -46,31 +46,34 @@ int main(int argc, char **argv)
 
   int window_size = 0;
   // Only need to allocate a non-zero buffer with one rank
-  if (rank == 0) window_size = 3*N*sizeof(RealType);
+  if (rank == 0) window_size = N*sizeof(RealType);
 
   int disp = sizeof(RealType);
 
-  MPI_Aint baseptr;
-  MPI_Win win;
-  // Allocated shared memory for all three arrays at once
-  MPI_Win_allocate_shared(window_size, disp, MPI_INFO_NULL, node_comm, (void *)&baseptr, &win);
+  MPI_Aint baseptr_a, baseptr_b, baseptr_c;
+  MPI_Win win_a, win_b, win_c;
+  MPI_Win_allocate_shared(window_size, disp, MPI_INFO_NULL, node_comm, (void *)&baseptr_a, &win_a);
+  MPI_Win_allocate_shared(window_size, disp, MPI_INFO_NULL, node_comm, (void *)&baseptr_b, &win_b);
+  MPI_Win_allocate_shared(window_size, disp, MPI_INFO_NULL, node_comm, (void *)&baseptr_c, &win_c);
 
+  RealType *a;
+  RealType *b;
+  RealType *c;
   // Get local address of shared buffer
   MPI_Aint node_size;
   int node_disp_unit;
-  MPI_Aint node_ptr;
-  MPI_Win_shared_query(win, 0, &node_size, &node_disp_unit, &node_ptr);
+  MPI_Win_shared_query(win_a, 0, &node_size, &node_disp_unit, &a);
+  MPI_Win_shared_query(win_b, 0, &node_size, &node_disp_unit, &b);
+  MPI_Win_shared_query(win_c, 0, &node_size, &node_disp_unit, &c);
 
-  RealType *a = (RealType *)(node_ptr);
-  RealType *b = (RealType *)(node_ptr + N*node_disp_unit);
-  RealType *c = (RealType *)(node_ptr + 2*N*node_disp_unit);
 
   for (int i = 0; i < N; i++) {
     a[i] = 1.0;
     b[i] = 1.0*i;
   }
 
-  MPI_Win_fence(0, win);
+  MPI_Win_fence(0, win_a);
+  MPI_Win_fence(0, win_b);
 
   // Divide up the work - compute ranges for each node
   int items_per_rank = N/nodes;
@@ -83,7 +86,7 @@ int main(int argc, char **argv)
 
   vector_add(a, b, c, istart, iend);
 
-  MPI_Win_fence(0, win);
+  MPI_Win_fence(0, win_c);
   double end = clock();
 
   double elapsed = end - start;
