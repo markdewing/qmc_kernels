@@ -36,7 +36,7 @@ int main(int argc, char **argv)
 
   size_t array_bytes = N * sizeof(RealType);
   if (rank == 0) {
-    printf("Array size = %g MB\n",array_bytes/1e9);
+    printf("Array size = %g GB\n",array_bytes/1e9);
   }
 
   // Create shared memory communicator on a single node
