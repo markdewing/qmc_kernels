@@ -8,7 +8,7 @@
 #define RealType double
 #define N 1000
 
-double clock()
+double cpu_clock()
 {
     struct timeval tv;
     gettimeofday(&tv, 0);
@@ -34,11 +34,11 @@ int main()
     b[i] = 1.0*i;
   }
 
-  double start = clock();
+  double start = cpu_clock();
 
   vector_add(a, b, c, N);
 
-  double end = clock();
+  double end = cpu_clock();
   double elapsed = end - start;
   double elapsed_ns = elapsed * 1e9;
 
