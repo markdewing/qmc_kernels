@@ -13,7 +13,7 @@ import psi
 # Coordinate transformation
 @np.vectorize
 def transform_cc(t):
-    L = 2.0
+    L = 1.0
 
     # Might have numerical problems near pi/2
     return L/np.tan(t)
@@ -24,7 +24,7 @@ def transform_cc(t):
 # Jacobian of the transformation
 @np.vectorize
 def jacobian_cc(t):
-    L = 2.0
+    L = 1.0
     return L/np.sin(t)**2
 
 # https://stackoverflow.com/questions/46782444/how-to-convert-a-linear-index-to-subscripts-with-support-for-negative-strides
@@ -45,18 +45,18 @@ def trapn_cc(ndim, n, fn):
     a = 0.0
     b = math.pi
     # Size of each interval
-    h = (1.0/n)*(math.pi)
+    h = math.pi/(n+1)
     hval = h**ndim
 
     total = 0.0
-    nnm1 = [n-1]*ndim
+    nn1 = [n]*ndim
     idx = np.zeros(ndim, dtype=np.int64)
     x = np.zeros(ndim)
     xt = np.zeros(ndim)
 
     npts = n**ndim
     for i in range(npts):
-        idx = ind2sub(i, nnm1, idx) + 1
+        idx = ind2sub(i, nn1, idx) + 1
         x[:] = idx*h
         xt[:] = transform_cc(x)
         jac = np.prod(jacobian_cc(x))
