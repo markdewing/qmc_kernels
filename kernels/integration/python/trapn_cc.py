@@ -14,7 +14,12 @@ import psi
 @np.vectorize
 def transform_cc(t):
     L = 2.0
+
+    # Might have numerical problems near pi/2
     return L/np.tan(t)
+
+    # If seeing problems, can use a different expression for cotangent
+    #return L*np.cos(t)/np.sin(t)
 
 # Jacobian of the transformation
 @np.vectorize
@@ -32,7 +37,7 @@ def ind2sub(idx, shape, indices):
     return indices
 
 def get_npts():
-    return (n-1)**ndim
+    return n**ndim
 
 # Assume the integrand goes to zero faster than 1/x^2, so the endpoints evaluate to zero.
 
@@ -49,7 +54,7 @@ def trapn_cc(ndim, n, fn):
     x = np.zeros(ndim)
     xt = np.zeros(ndim)
 
-    npts = (n-1)**ndim
+    npts = n**ndim
     for i in range(npts):
         idx = ind2sub(i, nnm1, idx) + 1
         x[:] = idx*h
@@ -74,7 +79,7 @@ if __name__ == '__main__':
     # Fixed for this integrand (2 particles in 3D space)
     ndim = 6
 
-    # Number of points in each dimension
+    # Number of points used for evaluation in each dimension
     n = 6
 
     npts = get_npts()
