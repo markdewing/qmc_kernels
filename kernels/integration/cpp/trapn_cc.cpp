@@ -93,8 +93,6 @@ double jacobian_cc(double t)
     return L/(s*s);
 }
 
-//template <typename F>
-//double trapn_cc(int n, F &f)
 double trapn_cc(int n)
 {
     double h = pi/n;
@@ -113,16 +111,12 @@ double trapn_cc(int n)
     for (int i = 0; i < npts; i++) {
         double xx[ndim];
         ind2sub(i, nnm1, indices);
-        //std::cout << " i = " << i << " nnm1 = " << nnm1[0] <<  " indices = " << indices[0]<< " " << indices[1] << std::endl;
         double jac = 1.0;
         for (int j = 0; j < ndim; j++) {
             double x = (indices[j]+1) * h;
             xx[j] = transform_cc(x);
             jac *= jacobian_cc(x);
         }
-        //std::cout << "   jac = " << jac << std::endl;
-        //std::cout << "   xx = " << xx[0] << " " << xx[1] << std::endl;
-        //total += jac*f(xx);
         total += jac*psi_fn(xx);
     }
 
@@ -131,6 +125,7 @@ double trapn_cc(int n)
 
 int main()
 {
+
     // Number of points in each dimension
     int n = 12;
 
@@ -148,13 +143,20 @@ int main()
 
     // Scan different values of n
 #if 0
-    for (int n = 10; n <= 24; n++) {
-        double start = omp_get_wtime();
-        double val = trapn_cc(n, fn);
-        double end = omp_get_wtime();
-        double diff = expected-val;
-        std::cout << n << " " << val << " " << diff << " " << end-start << std::endl;
+    std::cout << "n   npts   val     elapsed time (s)    rate (evals/s) " << std::endl;
+    for (int n = 10; n < 24; n++) {
+      uint64_t npts = get_npts(ndim, n);
+      double start = omp_get_wtime();
+      double val = trapn_cc(n);
+      double end = omp_get_wtime();
+      double elapsed = end-start;
+      std::cout << n << " "
+                << npts <<  " "
+                << val << " "
+                << elapsed << " "
+                << npts/elapsed << std::endl;
     }
+
 #endif
 
 }
