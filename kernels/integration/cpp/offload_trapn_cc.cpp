@@ -3,6 +3,9 @@
 #include <iomanip>
 #include <cmath>
 #include <omp.h>
+#ifdef USE_FMT_LIBRARY
+#include <fmt/core.h>
+#endif
 
 // Use OpenMP offload to target accelerators
 
@@ -79,18 +82,20 @@ void ind2sub(int idx, const int* shape, int* indices)
 
 uint64_t get_npts(int ndim, int n)
 {
-    return std::pow((n-1), ndim);
+    return std::pow(n, ndim);
 }
+
+const double L = 0.5;
 
 double transform_cc(double t)
 {
-    double L = 2.0;
-    return L/std::tan(t);
+    //return L/std::tan(t);
+
+    return L*std::cos(t)/std::sin(t);
 }
 
 double jacobian_cc(double t)
 {
-    double L = 2.0;
     double s = std::sin(t);
     return L/(s*s);
 }
@@ -101,11 +106,11 @@ double trapn_cc(int n)
 
     double total = 0.0;
 
-    int npts = std::pow((n-1), ndim);
+    int npts = std::pow(n, ndim);
     int indices[ndim];
-    int nnm1[ndim];
+    int nn[ndim];
     for (int i = 0; i < ndim; i++) {
-        nnm1[i] = n-1;
+        nn[i] = n;
     }
 
     double start = omp_get_wtime();
@@ -113,10 +118,12 @@ double trapn_cc(int n)
 #pragma omp target parallel for reduction(+:total)
     for (int i = 0; i < npts; i++) {
         double xx[ndim];
-        ind2sub(i, nnm1, indices);
+        ind2sub(i, nn, indices);
         double jac = 1.0;
         for (int j = 0; j < ndim; j++) {
+            // map to (0, pi)
             double x = (indices[j]+1) * h;
+            // map to (-oo, oo)
             xx[j] = transform_cc(x);
             jac *= jacobian_cc(x);
         }
@@ -129,9 +136,10 @@ double trapn_cc(int n)
 int main()
 {
 
-    // Number of points in each dimension
+    // Number of grid points in each dimension
     int n = 12;
 
+#if 1
     // Use a single value of n
     uint64_t npts = get_npts(ndim, n);
     std::cout << "npts = " << npts << std::endl;
@@ -141,6 +149,7 @@ int main()
     std::cout << "val = " << std::setprecision(16) << val << std::endl;
     double elapsed = end-start;
     std::cout << " time = " << elapsed << "  eval rate = " << npts/elapsed << std::endl;
+#endif
 
 
     // Scan different values of n
@@ -152,11 +161,15 @@ int main()
       double val = trapn_cc(n);
       double end = omp_get_wtime();
       double elapsed = end-start;
+#ifdef USE_FMT_LIBRARY
+      fmt::print("{0:<5} {1:<8} {2:12.8e} {3:7.4f} {4:6.3e}\n",n,npts,val,elapsed,npts/elapsed);
+#else
       std::cout << n << " "
                 << npts <<  " "
                 << val << " "
                 << elapsed << " "
                 << npts/elapsed << std::endl;
+#endif
     }
 #endif
 
