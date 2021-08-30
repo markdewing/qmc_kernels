@@ -3,6 +3,12 @@
 #include <iomanip>
 #include <cmath>
 #include <omp.h>
+#ifdef USE_FMT_LIBRARY
+#include <fmt/core.h>
+#endif
+
+// Can use the fmt library for formatting the printed output
+// (C++20 compatible) https://github.com/fmtlib/fmt
 
 const double pi = M_PI;
 
@@ -77,47 +83,109 @@ void ind2sub(int idx, const int* shape, int* indices)
 
 uint64_t get_npts(int ndim, int n)
 {
-    return std::pow((n-1), ndim);
+    return std::pow(n, ndim);
 }
+
+// Problem-dependent convergence parameter
+const double L = 0.5;
 
 double transform_cc(double t)
 {
-    double L = 2.0;
-    return L/std::tan(t);
+    // Can cause performance and/or numerical stability problems
+    //return L/std::tan(t);
+
+    //return L*std::tan(pi/2 - t);
+
+    // Use alternate expression for cotangent
+    double sin_t;
+    double cos_t;
+    sincos(t, &sin_t, &cos_t);
+    return L *cos_t/sin_t;
 }
 
 double jacobian_cc(double t)
 {
-    double L = 2.0;
     double s = std::sin(t);
     return L/(s*s);
 }
 
-double trapn_cc(int n)
+// Transform infinite interval to -1,1
+
+double transform_inf(double t)
 {
-    double h = pi/n;
+  return t/(1.0 - t*t);
+}
+
+double jacobian_inf(double t)
+{
+  double denom = (1.0-t*t);
+  return (1.0 + t*t)/(denom*denom);
+}
+
+// Trapezoidal rule over infinite interval.
+double trapn_inf(int n)
+{
+    // Interval is (-1,1)
+    double h = 2.0/(n+1);
 
     double total = 0.0;
 
-    int npts = std::pow((n-1), ndim);
+    int npts = std::pow(n, ndim);
     int indices[ndim];
-    int nnm1[ndim];
+    int nn[ndim];
     for (int i = 0; i < ndim; i++) {
-        nnm1[i] = n-1;
+        nn[i] = n;
     }
 
 
 #pragma omp parallel for reduction(+:total)
     for (int i = 0; i < npts; i++) {
         double xx[ndim];
-        ind2sub(i, nnm1, indices);
+        ind2sub(i, nn, indices);
         double jac = 1.0;
         for (int j = 0; j < ndim; j++) {
+            // map to indices to interval (-1,1)
+            double x = (indices[j]+1) * h - 1.0;
+            // map to (-oo,oo)
+            xx[j] = transform_inf(x);
+            jac *= jacobian_inf(x);
+        }
+        double fn_val = psi_fn(xx);
+        total += jac*fn_val;
+    }
+
+    return total*std::pow(h, ndim);
+}
+
+// Clenshaw-Curtis quadrature over an infinite integral
+double trapn_cc(int n)
+{
+    double h = pi/n;
+
+    double total = 0.0;
+
+    int npts = std::pow(n, ndim);
+    int indices[ndim];
+    int nn[ndim];
+    for (int i = 0; i < ndim; i++) {
+        nn[i] = n;
+    }
+
+
+#pragma omp parallel for reduction(+:total)
+    for (int i = 0; i < npts; i++) {
+        double xx[ndim];
+        ind2sub(i, nn, indices);
+        double jac = 1.0;
+        for (int j = 0; j < ndim; j++) {
+            // map to (0,pi)
             double x = (indices[j]+1) * h;
+            // map to (-oo,oo)
             xx[j] = transform_cc(x);
             jac *= jacobian_cc(x);
         }
-        total += jac*psi_fn(xx);
+        double fn_val = psi_fn(xx);
+        total += jac*fn_val;
     }
 
     return total*std::pow(h, ndim);
@@ -126,6 +194,7 @@ double trapn_cc(int n)
 int main()
 {
 
+#if 1
     // Number of points in each dimension
     int n = 12;
 
@@ -139,22 +208,48 @@ int main()
     std::cout << "val = " << std::setprecision(16) << val << std::endl;
     double elapsed = end-start;
     std::cout << " time = " << elapsed << "  eval rate = " << npts/elapsed << std::endl;
+#endif
 
 
+    // Number of intevals in each dimension
+
+    // - number of grid points = n + 1
+    // - number of interior grid points = n -1
+    // spacing (h) determined from 1/(number of grid points)
     // Scan different values of n
 #if 0
-    std::cout << "n   npts   val     elapsed time (s)    rate (evals/s) " << std::endl;
-    for (int n = 10; n < 24; n++) {
+#ifdef USE_FMT_LIBRARY
+    fmt::print("{0:<5}  {1:<10} {2:10} val(inf)   elapsed time (s)    rate (evals/s) \n","n","npts","h");
+#else
+    std::cout << "n   npts   h val(inf)   elapsed time (s)    rate (evals/s)  val(cc) elapsed_time(s) rate(eval/s) " << std::endl;
+#endif
+    for (int n = 3; n < 24; n++) {
       uint64_t npts = get_npts(ndim, n);
+      double h = 2.0/n;
+
       double start = omp_get_wtime();
-      double val = trapn_cc(n);
+      double val_inf = trapn_inf(n);
       double end = omp_get_wtime();
       double elapsed = end-start;
+
+      double start_cc = omp_get_wtime();
+      double val_cc = trapn_cc(n);
+      double end_cc = omp_get_wtime();
+      double elapsed_cc = end_cc-start_cc;
+
+#ifdef USE_FMT_LIBRARY
+      fmt::print("{0:<5} {1:<8} {2:7.5f} {3:12.8e} {4:7.4f} {5:6.3e} {6:12.10e} {7:7.4f} {8:7.4g}\n",n,npts,h,val_inf,elapsed,npts/elapsed,val_cc,elapsed_cc,npts/elapsed_cc);
+#else
       std::cout << n << " "
                 << npts <<  " "
-                << val << " "
+                << h <<  " "
+                << val_inf << " "
                 << elapsed << " "
-                << npts/elapsed << std::endl;
+                << npts/elapsed << " "
+                << val_cc << " "
+                << elapsed_cc << " "
+                << npts/elapsed_cc << std::endl;
+#endif
     }
 
 #endif
