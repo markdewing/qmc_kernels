@@ -15,13 +15,14 @@ import psi
 # Coordinate transformation
 @np.vectorize
 def transform_cc(t):
-    L = 2.0
-    return L/np.tan(t)
+    L = 0.5
+    #return L/np.tan(t)
+    return L*np.cos(t)/np.sin(t)
 
 # Jacobian of the transformation
 @np.vectorize
 def jacobian_cc(t):
-    L = 2.0
+    L = 0.5
     return L/np.sin(t)**2
 
 # https://stackoverflow.com/questions/46782444/how-to-convert-a-linear-index-to-subscripts-with-support-for-negative-strides
@@ -35,7 +36,7 @@ def ind2sub(idx, shape, indices):
 
 # Assume the integrand goes to zero faster than 1/x^2, so the endpoints evaluate to zero.
 
-def trapn_cc_proc(start, end, fn, nnm1, ndim, h, res_queue):
+def trapn_cc_proc(start, end, fn, nn1, ndim, h, res_queue):
 
     idx = np.zeros(ndim, dtype=np.int64)
     x = np.zeros(ndim)
@@ -43,7 +44,7 @@ def trapn_cc_proc(start, end, fn, nnm1, ndim, h, res_queue):
 
     total = 0.0
     for i in range(start,end):
-        idx = ind2sub(i, nnm1, idx) + 1
+        idx = ind2sub(i, nn1, idx) + 1
         x[:] = idx*h
         xt[:] = transform_cc(x)
         jac = np.prod(jacobian_cc(x))
@@ -55,19 +56,19 @@ def get_npts():
     return (n-1)**ndim
 
 def trapn_cc_mp(ndim, n, fn, nproc):
-    a = 0.0
-    b = math.pi
+
     # Size of each interval
-    h = (1.0/n)*(math.pi)
+    h = (math.pi/(n+1))
+
     hval = h**ndim
 
     total = 0.0
-    nnm1 = [n-1]*ndim
+    nn1 = [n]*ndim
     idx = np.zeros(ndim, dtype=np.int64)
     x = np.zeros(ndim)
     xt = np.zeros(ndim)
 
-    npts = (n-1)**ndim
+    npts = n**ndim
 
     pts_per_proc = npts//nproc
 
@@ -77,7 +78,7 @@ def trapn_cc_mp(ndim, n, fn, nproc):
     start = 0
     for i in range(nproc):
         end = min(start + pts_per_proc, npts)
-        p = mp.Process(target=trapn_cc_proc, args=(start, end, fn, nnm1, ndim, h, res_queue))
+        p = mp.Process(target=trapn_cc_proc, args=(start, end, fn, nn1, ndim, h, res_queue))
         all_p.append(p)
         p.start()
 
@@ -93,7 +94,7 @@ def trapn_cc_mp(ndim, n, fn, nproc):
 
 
     #for i in range(npts):
-    #    idx = ind2sub(i, nnm1, idx) + 1
+    #    idx = ind2sub(i, nn1, idx) + 1
     #    x[:] = idx*h
     #    xt[:] = transform_cc(x)
     #    jac = np.prod(jacobian_cc(x))
