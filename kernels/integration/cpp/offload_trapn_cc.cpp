@@ -102,7 +102,7 @@ double jacobian_cc(double t)
 
 double trapn_cc(int n)
 {
-    double h = pi/n;
+    double h = pi/(n+1);
 
     double total = 0.0;
 

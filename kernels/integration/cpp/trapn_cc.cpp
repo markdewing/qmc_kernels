@@ -160,7 +160,7 @@ double trapn_inf(int n)
 // Clenshaw-Curtis quadrature over an infinite integral
 double trapn_cc(int n)
 {
-    double h = pi/n;
+    double h = pi/(n+1);
 
     double total = 0.0;
 
