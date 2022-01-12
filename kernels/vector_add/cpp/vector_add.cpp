@@ -16,10 +16,12 @@ void vector_add(const std::vector<T> &a, const std::vector<T> &b,
 int main() {
 
   using RealType = double;
-  const int N = 10000;
+  const uint64_t N = 10 * 1000*1000ULL;
   std::vector<RealType> a(N);
   std::vector<RealType> b(N);
   std::vector<RealType> c(N);
+
+  std::cout << "Array size = " << N * sizeof(RealType) * 1.0 / std::giga::num << " GB" << std::endl;
 
   std::fill(a.begin(), a.end(), 1.0);
 
@@ -39,9 +41,9 @@ int main() {
   std::cout << "Elapsed time = " << elapsed_ns.count() / N << " ns per element"
             << std::endl;
 
-  int read_bytes = 2 * N * sizeof(RealType);
-  int write_bytes = N * sizeof(RealType);
-  int rw_bytes = read_bytes + write_bytes;
+  uint64_t read_bytes = 2 * N * sizeof(RealType);
+  uint64_t write_bytes = N * sizeof(RealType);
+  uint64_t rw_bytes = read_bytes + write_bytes;
 
   double bw = rw_bytes * 1.0 / elapsed.count();
 
