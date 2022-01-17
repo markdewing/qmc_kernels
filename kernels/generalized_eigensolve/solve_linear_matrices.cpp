@@ -7,6 +7,7 @@
 #include <cmath>
 #include <algorithm>
 #include <iomanip>
+#include <chrono>
 
 //#define USE_MKL
 #ifdef USE_MKL
@@ -189,15 +190,26 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
 {
 
   std::vector<double> prod(N*N);
+  auto invert_start = std::chrono::system_clock::now();
   do_inverse(N, overlap);
+  auto invert_end = std::chrono::system_clock::now();
+  std::chrono::duration<double> invert_time = invert_end - invert_start;
+  std::cout << "  Invert matrix time : " << invert_time.count() << std::endl;
+
+
 
   double one(1.0);
   double zero(0.0);
 
-
   char transa('N');
   char transb('N');
+
+  auto dgemm_start = std::chrono::system_clock::now();
   dgemm(&transa, &transb, &N, &N, &N, &one, hamiltonian, &N, overlap, &N, &zero, prod.data(), &N);
+  auto dgemm_end = std::chrono::system_clock::now();
+  std::chrono::duration<double> dgemm_time = dgemm_end - dgemm_start;
+  std::cout << "  Matrix multiply time : " << dgemm_time.count() << std::endl;
+
 
   // do transpose (why?)
   for (int i = 0; i < N; i++) {
@@ -229,6 +241,7 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
   std::cout << "optimal lwork = " << lwork << std::endl;
   work.resize(lwork);
 
+  auto dgeev_start = std::chrono::system_clock::now();
   dgeev(&jl,&jr, &N, prod.data(), &N,
         alphar.data(), alphai.data(), vl.data(), &N, vr.data(), &N,
         work.data(), &lwork, &info);
@@ -236,6 +249,10 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
   if (info != 0) {
     std::cout << "dgeev error, info = " << info << std::endl;
   }
+  auto dgeev_end = std::chrono::system_clock::now();
+  std::chrono::duration<double> dgeev_time = dgeev_end - dgeev_start;
+  std::cout << "  Eigenvalue solver time : " << dgeev_time.count() << std::endl;
+
 
 #if 0
   std::cout << "Eigenvalues" << std::endl;
@@ -297,6 +314,8 @@ int main(int argc, char **argv)
     return 1;
   }
 
+  std::chrono::system_clock::time_point read_start = std::chrono::system_clock::now();
+
   hid_t h1 = H5Dopen(file_id,"overlap",H5P_DEFAULT);
   hid_t dataspace = H5Dget_space(h1);
   int rank = H5Sget_simple_extent_ndims(dataspace);
@@ -340,6 +359,9 @@ int main(int argc, char **argv)
 
   H5Fclose(file_id);
 
+  std::chrono::system_clock::time_point read_end = std::chrono::system_clock::now();
+  std::chrono::duration<double> read_time = read_end - read_start;
+  std::cout << "File read time: " << read_time.count() << std::endl;
 
   apply_shifts(N, hamiltonian_data.data(), overlap_data.data(), shift_i, shift_s);
 
@@ -347,10 +369,16 @@ int main(int argc, char **argv)
   double lowest_ev;
   std::vector<double> scaled_evec(N);
 
+  auto eig_start = std::chrono::system_clock::now();
+
   //do_inverse(overlap_data.data(), sizes[0]);
   //compute_eigenthings_generalized(N, overlap_data.data(), hamiltonian_data.data(), &lowest_ev, scaled_evec.data());
   //
   compute_eigenthings_other(N, overlap_data.data(), hamiltonian_data.data(), &lowest_ev, scaled_evec.data());
+  auto eig_end = std::chrono::system_clock::now();
+  std::chrono::duration<double> eig_time = eig_end - eig_start;
+  std::cout << "Total generalized eigenvalue time: " << eig_time.count() << std::endl;
+
 
   std::cout << std::setprecision(10) << "lowest ev: qmcpack, this, diff " << qmcpack_lowest_ev << " " << lowest_ev << " " << (qmcpack_lowest_ev - lowest_ev) << std::endl;
 
