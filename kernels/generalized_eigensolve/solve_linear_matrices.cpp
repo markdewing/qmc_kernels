@@ -235,7 +235,7 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
 // This follows the "one_shift_only" code in QMCFixedSampleLinearOptimizeBatched.cpp
 
 
-int main()
+int main(int argc, char **argv)
 {
 
   //std::string fname = "linear_matrices.h5";
@@ -243,9 +243,17 @@ int main()
   std::string fname = "propane100_linear_matrices.h5";
   //std::string fname = "prop_three_body.h5";
   //std::string fname = "methane_linear_matrices.h5";
+
+  if (argc > 1) {
+    fname = argv[1];
+  }
+
+  std::cout << "Using file: " << fname << std::endl;
+
   hid_t file_id = H5Fopen(fname.c_str(), H5F_ACC_RDONLY, H5P_DEFAULT);
   if (file_id < 0) {
     std::cout << "Unable to open: " << fname << std::endl;
+    return 1;
   }
 
   hid_t h1 = H5Dopen(file_id,"overlap",H5P_DEFAULT);
