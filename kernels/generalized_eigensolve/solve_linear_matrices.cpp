@@ -4,12 +4,17 @@
 #include <hdf5.h>
 #include <iostream>
 #include <vector>
-#include <mkl.h>
 #include <cmath>
 #include <algorithm>
 #include <iomanip>
 
-#if 0
+#define USE_MKL
+#ifdef USE_MKL
+#include <mkl.h>
+#endif
+
+
+#ifndef USE_MKL
 extern "C" {
 void dgetrf_(const int& n, const int& m, double* a, const int& n0, int* piv, int& st);
 void dgetri_(const int& n, double* a, const int& n0, int const* piv, double* work, const int&, int& st);
@@ -54,17 +59,21 @@ void do_inverse(int N, double *matrix)
 
   std::cout << "starting dgetrf" << std::endl;
   int info;
-  //dgetrf(n, n, matrix, n, pivot.data(), status);
-  // MKL
+#ifdef USE_MKL
   dgetrf(&N, &N, matrix, &N, pivot.data(), &info);
+#else
+  dgetrf(n, n, matrix, n, pivot.data(), status);
+#endif
   if (info != 0) {
     std::cout << "dgetrf error, info = " << info << std::endl;
   }
 
   std::cout << "starting dgetri" << std::endl;
-  //dgetri(n, matrix, n, pivot.data(), work.data(), n, status);
-  // MKL
+#ifdef USE_MKL
   dgetri(&N, matrix, &N, pivot.data(), work.data(), &N, &info);
+#else
+  dgetri(n, matrix, n, pivot.data(), work.data(), n, status);
+#endif
   if (info != 0) {
     std::cout << "dgetri error, info = " << info << std::endl;
   }
@@ -87,8 +96,10 @@ void compute_eigenthings_generalized(int N, double* overlap, double* hamiltonian
   char jl('V');
   char jr('V');
 
+#ifdef USE_MKL
   dggev(&jl,&jr, &N, overlap, &N, hamiltonian, &N,
         alphar.data(), alphai.data(), beta.data(), vl.data(), &N, vr.data(), &N, work.data(), &lwork, &info);
+#endif
 
   lwork = work[0];
   std::cout << "optimal lwork = " << lwork << std::endl;
@@ -97,9 +108,11 @@ void compute_eigenthings_generalized(int N, double* overlap, double* hamiltonian
   //dggev(&jl,&jr, &N, overlap, &N, hamiltonian, &N,
   //      alphar.data(), alphai.data(), beta.data(), vl.data(), &N, vr.data(), &N,
   //      work.data(), &lwork, &info);
+#ifdef USE_MKL
   dggev(&jl,&jr, &N, hamiltonian, &N, overlap, &N,
         alphar.data(), alphai.data(), beta.data(), vl.data(), &N, vr.data(), &N,
         work.data(), &lwork, &info);
+#endif
   if (info != 0) {
     std::cout << "dggev error, info = " << info << std::endl;
   }
@@ -156,7 +169,9 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
 
   char transa('N');
   char transb('N');
+#ifdef USE_MKL
   dgemm(&transa, &transb, &N, &N, &N, &one, hamiltonian, &N, overlap, &N, &zero, prod.data(), &N);
+#endif
 
   // do transpose (why?)
   for (int i = 0; i < N; i++) {
@@ -180,17 +195,21 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
 
   int lwork = -1;
   std::vector<double> work(1);
+#ifdef USE_MKL
   dgeev(&jl,&jr, &N, prod.data(), &N,
         alphar.data(), alphai.data(), vl.data(), &N, vr.data(), &N,
         work.data(), &lwork, &info);
+#endif
 
   lwork = work[0];
   std::cout << "optimal lwork = " << lwork << std::endl;
   work.resize(lwork);
 
+#ifdef USE_MKL
   dgeev(&jl,&jr, &N, prod.data(), &N,
         alphar.data(), alphai.data(), vl.data(), &N, vr.data(), &N,
         work.data(), &lwork, &info);
+#endif
 
   if (info != 0) {
     std::cout << "dgeev error, info = " << info << std::endl;
