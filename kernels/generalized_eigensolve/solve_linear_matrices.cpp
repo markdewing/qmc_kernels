@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <iomanip>
 
-#define USE_MKL
+//#define USE_MKL
 #ifdef USE_MKL
 #include <mkl.h>
 #endif
@@ -16,12 +16,19 @@
 
 #ifndef USE_MKL
 extern "C" {
-void dgetrf_(const int& n, const int& m, double* a, const int& n0, int* piv, int& st);
-void dgetri_(const int& n, double* a, const int& n0, int const* piv, double* work, const int&, int& st);
+#define dgetrf dgetrf_
+#define dgetri dgetri_
+#define dgeev dgeev_
+#define dggev dggev_
+#define dgemm dgemm_
+//void dgetrf(const int& n, const int& m, double* a, const int& n0, int* piv, int& st);
+void dgetrf(const int* n, const int* m, double* a, const int* n0, int* piv, int* st);
+void dgetri(const int* n, double* a, const int* n0, int const* piv, double* work, const int*, int* st);
 
-  void dgeev_(char* JOBVL,
+  void dgeev(char* JOBVL,
              char* JOBVR,
-             int* N, double* A,
+             int* N,
+             double* A,
              int* LDA,
              double* ALPHAR,
              double* ALPHAI,
@@ -32,6 +39,39 @@ void dgetri_(const int& n, double* a, const int& n0, int const* piv, double* wor
              double* WORK,
              int* LWORK,
              int* INFO);
+
+  void dggev(char* JOBVL,
+             char* JOBVR,
+             int* N,
+             double* A,
+             int* LDA,
+             double* B,
+             int* LDB,
+             double* ALPHAR,
+             double* ALPHAI,
+             double *BETA,
+             double* VL,
+             int* LDVL,
+             double* VR,
+             int* LDVR,
+             double* WORK,
+             int* LWORK,
+             int* INFO);
+
+  void dgemm(const char* TRANSA,
+             const char* TRANSB,
+             const int* M,
+             const int* N,
+             const int* K,
+             const double* alpha,
+             const double* A,
+             const int* lda,
+             const double* B,
+             const int* ldb,
+             const double* beta,
+             double* C,
+             const int* ldc);
+
 
 }
 #endif
@@ -59,21 +99,13 @@ void do_inverse(int N, double *matrix)
 
   std::cout << "starting dgetrf" << std::endl;
   int info;
-#ifdef USE_MKL
   dgetrf(&N, &N, matrix, &N, pivot.data(), &info);
-#else
-  dgetrf(n, n, matrix, n, pivot.data(), status);
-#endif
   if (info != 0) {
     std::cout << "dgetrf error, info = " << info << std::endl;
   }
 
   std::cout << "starting dgetri" << std::endl;
-#ifdef USE_MKL
   dgetri(&N, matrix, &N, pivot.data(), work.data(), &N, &info);
-#else
-  dgetri(n, matrix, n, pivot.data(), work.data(), n, status);
-#endif
   if (info != 0) {
     std::cout << "dgetri error, info = " << info << std::endl;
   }
@@ -96,10 +128,8 @@ void compute_eigenthings_generalized(int N, double* overlap, double* hamiltonian
   char jl('V');
   char jr('V');
 
-#ifdef USE_MKL
   dggev(&jl,&jr, &N, overlap, &N, hamiltonian, &N,
         alphar.data(), alphai.data(), beta.data(), vl.data(), &N, vr.data(), &N, work.data(), &lwork, &info);
-#endif
 
   lwork = work[0];
   std::cout << "optimal lwork = " << lwork << std::endl;
@@ -108,11 +138,9 @@ void compute_eigenthings_generalized(int N, double* overlap, double* hamiltonian
   //dggev(&jl,&jr, &N, overlap, &N, hamiltonian, &N,
   //      alphar.data(), alphai.data(), beta.data(), vl.data(), &N, vr.data(), &N,
   //      work.data(), &lwork, &info);
-#ifdef USE_MKL
   dggev(&jl,&jr, &N, hamiltonian, &N, overlap, &N,
         alphar.data(), alphai.data(), beta.data(), vl.data(), &N, vr.data(), &N,
         work.data(), &lwork, &info);
-#endif
   if (info != 0) {
     std::cout << "dggev error, info = " << info << std::endl;
   }
@@ -169,9 +197,7 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
 
   char transa('N');
   char transb('N');
-#ifdef USE_MKL
   dgemm(&transa, &transb, &N, &N, &N, &one, hamiltonian, &N, overlap, &N, &zero, prod.data(), &N);
-#endif
 
   // do transpose (why?)
   for (int i = 0; i < N; i++) {
@@ -195,21 +221,17 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
 
   int lwork = -1;
   std::vector<double> work(1);
-#ifdef USE_MKL
   dgeev(&jl,&jr, &N, prod.data(), &N,
         alphar.data(), alphai.data(), vl.data(), &N, vr.data(), &N,
         work.data(), &lwork, &info);
-#endif
 
   lwork = work[0];
   std::cout << "optimal lwork = " << lwork << std::endl;
   work.resize(lwork);
 
-#ifdef USE_MKL
   dgeev(&jl,&jr, &N, prod.data(), &N,
         alphar.data(), alphai.data(), vl.data(), &N, vr.data(), &N,
         work.data(), &lwork, &info);
-#endif
 
   if (info != 0) {
     std::cout << "dgeev error, info = " << info << std::endl;
