@@ -97,6 +97,69 @@ void apply_shifts(int N, double *hamiltonian, double *overlap, double shift_i, d
   }
 }
 
+void do_inverse_magma(int N, double *matrix, magma_queue_t queue)
+{
+
+  double* d_A;
+  magma_int_t ret = magma_dmalloc(&d_A, N*N);
+  if (ret != MAGMA_SUCCESS) {
+    std::cout << "magma dmalloc for d_A failed\n";
+  }
+  magma_dsetmatrix(N, N, matrix, N, d_A, N, queue);
+
+  auto dgetrf_start = std::chrono::system_clock::now();
+  std::vector<int> pivot(N);
+  int info;
+  int status = magma_dgetrf_gpu(
+      N,
+      N,
+      d_A,
+      N,
+      pivot.data(),
+      &info
+      );
+  auto dgetrf_end = std::chrono::system_clock::now();
+
+  std::cout << " status from dgetrf = " << status << std::endl;
+  std::cout << " info from degetrf = " << info << std::endl;
+  std::chrono::duration<double> dgetrf_time = dgetrf_end - dgetrf_start;
+  std::cout << "    dgetrf time : " << dgetrf_time.count() << std::endl;
+
+  int nb = magma_get_dgetri_nb(N);
+  int lwork = nb*N;
+  std::cout << " lwork = " << lwork << std::endl;
+
+  double* d_work;
+  ret = magma_dmalloc(&d_work, lwork);
+  if (ret != MAGMA_SUCCESS) {
+    std::cout << "magma dmalloc for dwork failed\n";
+  }
+
+  auto dgetri_start = std::chrono::system_clock::now();
+
+  status = magma_dgetri_gpu(
+      N,
+      d_A,
+      N,
+      pivot.data(),
+      d_work,
+      lwork,
+      &info);
+  auto dgetri_end = std::chrono::system_clock::now();
+
+
+  std::cout << " status from dgetri = " << status << std::endl;
+  std::cout << " info from degetri = " << info << std::endl;
+
+  std::chrono::duration<double> dgetri_time = dgetri_end - dgetri_start;
+  std::cout << "    dgetri time : " << dgetri_time.count() << std::endl;
+
+  magma_dgetmatrix(N, N, d_A, N, matrix, N, queue);
+
+
+
+}
+
 void do_inverse(int N, double *matrix)
 {
 
@@ -191,12 +254,13 @@ void compute_eigenthings_generalized(int N, double* overlap, double* hamiltonian
 
 // Solve generalized eigenvalue problem by inverse and multiply
 //  (that is, the way numerical analysists tell you not to solve it)
-void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, double *lowest_ev, double* scaled_eval)
+void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, double *lowest_ev, double* scaled_eval, magma_queue_t queue)
 {
 
   std::vector<double> prod(N*N);
   auto invert_start = std::chrono::system_clock::now();
-  do_inverse(N, overlap);
+  //do_inverse(N, overlap);
+  do_inverse_magma(N, overlap, queue);
   auto invert_end = std::chrono::system_clock::now();
   std::chrono::duration<double> invert_time = invert_end - invert_start;
   std::cout << "  Invert matrix time : " << invert_time.count() << std::endl;
@@ -397,7 +461,7 @@ int main(int argc, char **argv)
   //do_inverse(overlap_data.data(), sizes[0]);
   //compute_eigenthings_generalized(N, overlap_data.data(), hamiltonian_data.data(), &lowest_ev, scaled_evec.data());
   //
-  compute_eigenthings_other(N, overlap_data.data(), hamiltonian_data.data(), &lowest_ev, scaled_evec.data());
+  compute_eigenthings_other(N, overlap_data.data(), hamiltonian_data.data(), &lowest_ev, scaled_evec.data(), queue);
   auto eig_end = std::chrono::system_clock::now();
   std::chrono::duration<double> eig_time = eig_end - eig_start;
   std::cout << "Total generalized eigenvalue time: " << eig_time.count() << std::endl;
