@@ -20,6 +20,142 @@
 #include <mkl_scalapack.h>
 #endif
 
+#ifndef USE_MKL
+#define blacs_get blacs_get_
+#define blacs_pinfo blacs_pinfo_
+#define blacs_gridinit blacs_gridinit_
+#define blacs_gridinfo blacs_gridinfo_
+#define numroc numroc_
+#define pdgemr2d pdgemr2d_
+#define descinit descinit_
+#define pdtran pdtran_
+#define pdgemm pdgemm_
+#define pdgetrf pdgetrf_
+#define pdgetri pdgetri_
+#define pdgehrd pdgehrd_
+#define pdhseqr pdhseqr_
+#define pdlacpy pdlacpy_
+extern "C" {
+void blacs_get(const int* ictxt, const int* what, int *val);
+void blacs_pinfo(int *myrank, int *nproc);
+void blacs_gridinit(int *ictxt, const char* order, const int* nprow, const int* npcol);
+void blacs_gridinfo(const int *ictxt, int *nprow, int *npcol, int *myprow, int *mypcol);
+int numroc(const int *n, const int* nb, const int* iproc, const int* isrcporc, const int* nprocs);
+
+void pdgemr2d(const int* m, const int* n,
+               const double* a,
+               const int* ia, const int* ja,
+               const int* desca,
+               double* b,
+               const int* ib, const int* jb,
+               const int* descb,
+               const int* ctxt);
+
+void descinit(int* desc,
+               const int* m, const int* n,
+               const int* mb, const int* nb,
+               const int* irsrc, const int* icsrc,
+               const int* ictxt,
+               const int* lld,
+               int *info);
+
+void pdtran(const int* m,
+            const int* n,
+            const double* alpha,
+            const double* a,
+            const int* ia,
+            const int* ja,
+            const int* desca,
+            const double* beta,
+            double* c,
+            const int* ic,
+            const int* jc,
+            const int* descc);
+
+void pdgemm(const char* transa,
+            const char* transb,
+            const int* m,
+            const int* n,
+            const int* k,
+            const double* alpha,
+            const double* a,
+            const int* ia,
+            const int* ja,
+            const int* desca,
+            const double* b,
+            const int* ib,
+            const int* jb,
+            const int* descb,
+            const double* beta,
+            double* c,
+            const int* ic,
+            const int* jc,
+            const int* descc);
+
+
+void pdgetrf(const int* m, const int* n,
+             double* local_A,
+             const int* ia, const int* ja,
+             const int *desc,
+             int *ipiv,
+             int *info);
+
+void pdgetri(const int* m,
+              double* local_A,
+              const int* ia, const int* ja,
+              const int* desc,
+              const int* ipiv,
+              double *work,
+              const int* lwork,
+              int *iwork,
+              const int* liwork,
+              int *info);
+
+void pdgehrd(const int* n,
+             const int* ilo,
+             const int* ihi,
+             double * a,
+             const int* ia,
+             const int* ja,
+             const int* desca,
+             double *tau,
+             double *work,
+             const int* lwork,
+             int* info);
+
+void pdhseqr(const char* job,
+             const char* compz,
+             const int* n,
+             const int* ilo,
+             const int* ihi,
+             const double* h,
+             const int* desch,
+             double *wr,
+             double *wi,
+             double *z,
+             const int* descz,
+             double* work,
+             const int* lwork,
+             int* iwork,
+             const int* liwork,
+             int* info);
+
+void pdlacpy(const char* job,
+             const int* m,
+             const int* n,
+             const double* a,
+             const int* ia,
+             const int* ja,
+             const int* desca,
+             double* b,
+             const int* ib,
+             const int* jb,
+             const int* descb);
+
+
+}
+#endif
+
 const int dlen = 9;
 
 
@@ -306,6 +442,8 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
   double rconde;
   double rcondv;
 
+  auto dgeev_start = std::chrono::system_clock::now();
+#ifdef MKL
   pdgeevx(&balanc, &jl, &jr, &sense, &N, local_trans.data(), desc_A.data(),
           alphar.data(), alphai.data(), vl.data(), desc_A.data(), local_vr.data(), desc_A.data(),
           &ilo, &ihi, &scale, &abnrm, &rconde, &rcondv, work.data(), &lwork, &info);
@@ -313,7 +451,6 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
   std::cout << "optimal lwork = " << lwork << std::endl;
   work.resize(lwork);
 
-  auto dgeev_start = std::chrono::system_clock::now();
   //dgeev(&jl,&jr, &N, prod.data(), &N,
   //      alphar.data(), alphai.data(), vl.data(), &N, vr.data(), &N,
   //      work.data(), &lwork, &info);
@@ -324,6 +461,48 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
   if (info != 0) {
     std::cout << "dgeev error, info = " << info << std::endl;
   }
+#else
+
+  std::cout << "pdghrd lwork query" << std::endl;
+  std::vector<double> tau(N);
+  pdgehrd(&N, &ilo, &ihi, local_trans.data(), &ia, &ja, desc_A.data(), tau.data(), work.data(), &lwork, &info);
+  lwork = work[0];
+  std::cout << "optimal lwork = " << lwork << std::endl;
+  work.resize(lwork);
+
+  pdgehrd(&N, &ilo, &ihi, local_trans.data(), &ia, &ja, desc_A.data(), tau.data(), work.data(), &lwork, &info);
+  if (info != 0) {
+    std::cout << "pdgehrd error, info = " << info << std::endl;
+  }
+
+  std::cout << "pdhseqr lwork query" << std::endl;
+  int lwork1 = -1;
+  int liwork1 = -1;
+  std::vector<int> iwork(1);
+  char job('E');
+  char compz('N');
+  std::cout << "N = " << N << std::endl;
+  std::cout << "ilo = " << ilo << std::endl;
+  std::cout << "ihi = " << ihi << std::endl;
+  std::cout << "A(0,0) = " << local_trans[0] << std::endl;
+  pdhseqr(&job, &compz, &N, &ilo, &ihi, local_trans.data(), desc_A.data(), alphar.data(), alphai.data(), local_vr.data(), desc_A.data(), work.data(), &lwork1, iwork.data(), &liwork1, &info);
+
+  lwork1 = work[0];
+  liwork1 = iwork[0];
+  std::cout << "optimal lwork = " << lwork1 << " liwork = " << liwork1 << std::endl;
+  if (lwork1 > lwork)
+    work.resize(lwork1);
+
+  iwork.resize(liwork1);
+
+  pdhseqr(&job, &compz, &N, &ilo, &ihi, local_trans.data(), desc_A.data(), alphar.data(), alphai.data(), local_vr.data(), desc_A.data(), work.data(), &lwork1, iwork.data(), &liwork1, &info);
+  if (info != 0) {
+    std::cout << "pdhseqr error, info = " << info << std::endl;
+  }
+
+#endif
+
+
   auto dgeev_end = std::chrono::system_clock::now();
   std::chrono::duration<double> dgeev_time = dgeev_end - dgeev_start;
   if (myrank == 0) std::cout << "  Eigenvalue solver time : " << dgeev_time.count() << std::endl;
