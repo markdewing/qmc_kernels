@@ -27,6 +27,7 @@ extern "C" {
 #define dhseqr dhseqr_
 #define dlacpy dlacpy_
 #define dorghr dorghr_
+#define dorgqr dorgqr_
 #define dtrevc3 dtrevc3_
 //void dgetrf(const int& n, const int& m, double* a, const int& n0, int* piv, int& st);
 void dgetrf(const int* n, const int* m, double* a, const int* n0, int* piv, int* st);
@@ -121,6 +122,18 @@ void dgetri(const int* n, double* a, const int* n0, int const* piv, double* work
               double* work,
               const int* lwork,
               int* info);
+
+  void dorgqr(const int* m,
+              const int* n,
+              const int* k,
+              double* a,
+              const int* lda,
+              const double* tau,
+              double* work,
+              const int* lwork,
+              int* info);
+
+
 
   void dtrevc3(const char* side,
                const char* howmny,
@@ -364,9 +377,14 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
   char uplo('L');
   dlacpy(&uplo, &N, &N, prod.data(), &N, vr.data(), &N);
 
+  //std::vector<double> vr2(N*N);
+  //dlacpy(&uplo, &N, &N, prod.data(), &N, vr2.data(), &N);
+  // dorghr is not in scalapack, either
+  // It does some matrix manipulations, then calls dorgqr
+#if 0
   auto dorghr_start = std::chrono::system_clock::now();
   int lwork2 = -1;
-  dorghr(&N, &ilo, &ihi, vr.data(), &N, tau.data(), work.data(), &lwork2, &info);
+  dorghr(&N, &ilo, &ihi, vr2.data(), &N, tau.data(), work.data(), &lwork2, &info);
   lwork2 = work[0];
   std::cout << "   optimal dorghr lwork = " << lwork2 << std::endl;
   if (lwork2 > lwork)  {
@@ -374,7 +392,7 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
     lwork = lwork2;
   }
 
-  dorghr(&N, &ilo, &ihi, vr.data(), &N, tau.data(), work.data(), &lwork2, &info);
+  dorghr(&N, &ilo, &ihi, vr2.data(), &N, tau.data(), work.data(), &lwork2, &info);
   if (info != 0) {
     std::cout << "dorghr error, info = " << info << std::endl;
   }
@@ -382,6 +400,46 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
   auto dorghr_end = std::chrono::system_clock::now();
   std::chrono::duration<double> dorghr_time = dorghr_end - dorghr_start;
   std::cout << "   dorghr time : " << dorghr_time.count() << std::endl;
+#endif
+
+  int nh = N - 1;
+  int lwork4 = -1;
+  for (int j = N; j > 1; j--) {
+    int jj = j-1;
+    for (int i = 1; i < j; i++) {
+      int ii = i-1;
+      vr[ii + jj*N] = 0.0;
+    }
+    for (int i = j+1; i <= N; i++) {
+      int ii = i-1;
+      vr[ii + jj*N]  = vr[ii + (jj-1)*N];
+    }
+  }
+
+  for (int i = 0; i < N; i++) {
+    vr[i] = 0.0;
+  }
+  vr[0] = 1.0;
+
+#if 0
+  for (int i = 0; i < N; i++) {
+    for (int j = 0; j < N; j++) {
+      std::cout << j+1 << " " << i+1 << " " << vr[j + i*N] << std::endl;
+    }
+  }
+#endif
+  dorgqr(&nh, &nh, &nh, &vr[1+N], &N, tau.data(), work.data(), &lwork4, &info);
+  lwork4 = work[0];
+  std::cout << "   optimal dorgqr lwork = " << lwork4 << std::endl;
+  if (lwork4 > lwork) {
+    work.resize(lwork4);
+    lwork = lwork4;
+  }
+  dorgqr(&nh, &nh, &nh, &vr[1+N], &N, tau.data(), work.data(), &lwork4, &info);
+
+  if (info != 0) {
+    std::cout << "dorgqr error, info = " << info << std::endl;
+  }
 
   auto dhseqr_start = std::chrono::system_clock::now();
 
@@ -404,6 +462,8 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
   auto dhseqr_end = std::chrono::system_clock::now();
   std::chrono::duration<double> dhseqr_time = dhseqr_end - dhseqr_start;
   std::cout << "   dhseqr time : " << dhseqr_time.count() << std::endl;
+
+
 
 
   // We only need one eigenvector, could select that here.
@@ -472,9 +532,8 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
   std::vector<double>::iterator min_elem = std::min_element(adjusted_ev.begin(), adjusted_ev.end());
   int idx = std::distance(adjusted_ev.begin(), min_elem);
   *lowest_ev = alphar[idx];
-
-
   std::cout << "Index of min eigenvalue = " << idx << std::endl;
+
   std::cout << "Eigenvectors" << std::endl;
   for (int i = 0; i < N; i++) {
     double eval = vr[idx*N + i];
