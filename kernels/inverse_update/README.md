@@ -8,3 +8,5 @@ The determinant can be computed from the LU decomposition, which is a also a ste
 Through [Sherman-Morrison](https://en.wikipedia.org/wiki/Sherman%E2%80%93Morrison_formula)
 and [Woodbury](https://en.wikipedia.org/wiki/Woodbury_matrix_identity) matrix formulas,
 the inverse matrix can be updated through single and multiple particle updates at less cost than a full inversion.
+
+The [invert_matrix](invert_matrix) directory contains implementations for inverting a matrix.  This is also used as part of the generalized eigensolver for parameter optimization.
