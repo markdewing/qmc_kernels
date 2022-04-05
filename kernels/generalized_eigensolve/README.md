@@ -14,12 +14,12 @@ The Hamiltonian matrix would be symmetric in the infinite sample limit.
 The finite sample version is asymmetric.
 Symmetrizing the matrix produces worse results because the asymmetric version is an unbiased estimator.
 
-Is there be any algorithmic advantage from knowing the Hamiltonian is an almost-symmetric matrix?
+Could there be any algorithmic advantage from knowing the Hamiltonian is an almost-symmetric matrix?
 
 
 
 Sample versions of the matrix can be obtained from QMCPACK using the "output_matrices_hdf" parameter.
-The `linear_matrices.h5` file contains the overlap and Hamiltonian matrices, and other paramters necessary for recreating the QMCPACK solve.
+The `linear_matrices.h5` file contains the overlap and Hamiltonian matrices, and other parameters necessary for recreating the QMCPACK solve.
 It also contains the output values so other implementations can be checked against QMCPACK.
 
 
