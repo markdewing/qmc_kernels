@@ -6,7 +6,7 @@
 #include <vector>
 
 void vector_add(float *a, float *b, float *c, int n) {
-#pragma omp target parallel for map(to : a [0:n], b [0:n]) map(from : c[0, n])
+#pragma omp target teams distribute parallel for map(to : a [0:n], b [0:n]) map(from : c[0:n])
   for (int i = 0; i < n; i++) {
     c[i] = a[i] + b[i];
   }
