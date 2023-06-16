@@ -28,11 +28,12 @@ def run_inverse_test():
 
   # Updated matrix.  Not needed for the update algorithms, but used for
   #   comparison in this script
-  A_new = np.copy(A) print 'A slice',A_new[p,:]
+  A_new = np.copy(A)
+  print('A slice',A_new[p,:])
   A_new[p,:] += vk
   # new row value (not delta)
   b = np.copy(A_new[p,:])
-  print 'b',b
+  print('b',b)
 
   R = test_determinant_ratio(A, p, vk, uk, A_new)
 
@@ -55,10 +56,10 @@ def test_determinant_ratio(A, p, vk, uk, A_copy):
   R_direct = np.linalg.det(A_copy)/np.linalg.det(A)
 
   if not np.isclose(R, R_direct):
-    print 'Error in ratio'
+    print('Error in ratio')
 
-  print 'Direct determinant ratio = ',R_direct
-  print 'Determinant ratio using formula = ',R
+  print('Direct determinant ratio = ',R_direct)
+  print('Determinant ratio using formula = ',R)
 
   return R
 
@@ -95,14 +96,14 @@ def update_inverse_loop(Ainv, p, b, R):
 #   At least if overwrite_a is set in the dger call (but that flag doens't seem to work)
 def update_inverse_blas(Ainv, p, b, R):
   y = np.zeros(Ainv.shape[0])
-  print 'b = ',b
+  print('b = ',b)
   scipy.linalg.blas.dgemv(alpha=1.0/R, a=Ainv, x=b, y=y, trans=1, overwrite_y=1)
-  print 'y = ',y
+  print('y = ',y)
 
   y[p] = 1 - 1.0/R
 
   rcopy = np.copy(Ainv[:,p])
-  print 'rcopy = ',rcopy
+  print('rcopy = ',rcopy)
 
   Ainv2 = scipy.linalg.blas.dger(alpha=-1.0, x=rcopy, y=y, a=Ainv)
 
@@ -112,13 +113,13 @@ def update_inverse_blas(Ainv, p, b, R):
 
 def test_inverse(Ainv2, Ainv, desc):
   if not np.allclose(Ainv, Ainv2):
-    print 'Inverses are different from ',desc
-    print 'Direct inverse'
-    print Ainv2
-    print 'Inverse via updates'
-    print Ainv
+    print('Inverses are different from ',desc)
+    print('Direct inverse')
+    print(Ainv2)
+    print('Inverse via updates')
+    print(Ainv)
   else:
-    print 'Inverse passes for ',desc
+    print('Inverse passes for ',desc)
 
 
 if __name__ == '__main__':
