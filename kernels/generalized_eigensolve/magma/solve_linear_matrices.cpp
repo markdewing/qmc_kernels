@@ -96,6 +96,11 @@ void apply_shifts(int N, double *hamiltonian, double *overlap, double shift_i, d
       hamiltonian[i*N + j]  += shift_s * overlap[i*N + j];
     }
   }
+
+  for (int i = 1; i < N; i++) {
+        if (overlap[i*N + i] == 0)
+            overlap[i*N +i] = shift_i * shift_s;
+  }
 }
 
 // Return value is device pointer to matrix.
@@ -111,8 +116,9 @@ double* do_inverse_magma(int N, double *matrix, magma_queue_t queue)
 
   auto dgetrf_start = std::chrono::system_clock::now();
   std::vector<int> pivot(N);
-  int info;
-  int status = magma_dgetrf_gpu(
+  int info = 0;
+  //int status = magma_dgetrf_gpu(
+  int status = magma_dgetrf_native(
       N,
       N,
       d_A,
@@ -139,6 +145,7 @@ double* do_inverse_magma(int N, double *matrix, magma_queue_t queue)
 
   auto dgetri_start = std::chrono::system_clock::now();
 
+  info = 0;
   status = magma_dgetri_gpu(
       N,
       d_A,
@@ -325,7 +332,7 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
   char jl('N');
   char jr('V');
 
-  int info;
+  int info = 0;
 
   int lwork = -1;
   std::vector<double> work(1);
@@ -338,11 +345,14 @@ void compute_eigenthings_other(int N, double* overlap, double* hamiltonian, doub
         alphar.data(), alphai.data(), vl.data(), &N, vr.data(), &N,
         work.data(), &lwork, &info);
 #endif
+  if (info != 0)
+    std::cout << "dgeev lwork error, info = " << info << std::endl;
 
   lwork = work[0];
   std::cout << "optimal lwork = " << lwork << std::endl;
   work.resize(lwork);
 
+  info = 0;
   auto dgeev_start = std::chrono::system_clock::now();
 #ifdef USE_MAGMA
   magma_dgeev(MagmaNoVec, MagmaVec, N, prod.data(), N,
