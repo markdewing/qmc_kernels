@@ -90,6 +90,11 @@ void apply_shifts(int N, double *hamiltonian, double *overlap, double shift_i, d
       hamiltonian[i*N + j]  += shift_s * overlap[i*N + j];
     }
   }
+
+  for (int i = 1; i < N; i++) {
+      if (overlap[i*N + i] == 0.0)
+          overlap[i*N +i] = shift_i * shift_s;
+  }
 }
 
 void do_inverse(int N, double *matrix)
@@ -99,12 +104,13 @@ void do_inverse(int N, double *matrix)
   std::vector<double> work(N);
 
   std::cout << "starting dgetrf" << std::endl;
-  int info;
+  int info = 0;
   dgetrf(&N, &N, matrix, &N, pivot.data(), &info);
   if (info != 0) {
     std::cout << "dgetrf error, info = " << info << std::endl;
   }
 
+  info = 0;
   std::cout << "starting dgetri" << std::endl;
   dgetri(&N, matrix, &N, pivot.data(), work.data(), &N, &info);
   if (info != 0) {
