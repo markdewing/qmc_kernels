@@ -5,8 +5,15 @@
 import numpy as np
 import scipy.linalg
 import h5py
+import sys
 
-f = h5py.File("linear_matrices.h5","r")
+fname = "linear_matrices.h5"
+if len(sys.argv) > 1:
+    fname = sys.argv[1]
+
+print('Using file',fname)
+
+f = h5py.File(fname,"r")
 
 
 # Load matrices
@@ -37,6 +44,8 @@ ham3[:,0] = ham[:,0]
 ham3[0,:] = ham[0,:]
 
 for i in range(d):
+    if ovlp[i,i] == 0.0:
+        ovlp[i,i] = shift_i*shift_s
     if ovlp[i,i] < 1e-5:
         print("small ovlp",i,ovlp[i,i])
 
